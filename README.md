@@ -1,0 +1,83 @@
+# Pydoro - Tu Temporizador Pomodoro Personalizado
+
+Pydoro es un temporizador Pomodoro personalizable y una herramienta de gestión del tiempo, diseñada para funcionar completamente en la terminal. Nace no tanto como un proyecto para mostrar al público, sino como una **herramienta personal**. La razón es que ningún pomodoro o medidor de tiempo existente en el mercado cumplía con mis necesidades y mi propia forma de trabajar y estudiar. Por ello, Pydoro ha sido desarrollado para ser mi compañero diario en la búsqueda de la concentración y la productividad.
+
+## Características
+
+* **Temporizador Pomodoro Completo:** Permite configurar ciclos de trabajo, descansos cortos y descansos largos.
+* **Temporizador Simple:** Una opción para contar el tiempo hacia arriba, ideal para sesiones de trabajo fluidas o de duración indefinida.
+* **Contadores de Sesión:** Mantiene un registro detallado de los Pomodoros completados, descansos cortos completados y descansos largos completados durante toda la ejecución del script.
+* **Resumen de Tiempo Total:** Calcula y muestra el tiempo total acumulado de trabajo y descanso en formato `HH:MM`.
+* **Frases Motivadoras:** Muestra frases inspiradoras aleatorias durante los períodos de trabajo y descanso.
+* **Interfaz de Terminal Estética:**
+    * Utiliza colores ANSI para mejorar la legibilidad y la experiencia visual.
+    * Incluye una barra de progreso que se actualiza en tiempo real.
+* **Notificaciones Auditivas:** Reproduce sonidos (`bell.wav` para fin de trabajo, `notif.wav` para fin de descanso) para indicar el cambio de fase.
+* **Control de Flujo Interactivo:** El usuario controla el inicio de cada fase (trabajo o descanso) y la navegación por el menú principal.
+* **Manejo de Interrupciones:** Permite interrumpir cualquier fase con `Ctrl+C`, ofreciendo la opción de saltar a la siguiente fase o cancelar la sesión actual.
+
+## Filosofía de Diseño
+
+Este temporizador ha sido desarrollado con una clara preferencia por la interfaz de línea de comandos. **No se planea en ningún momento integrar una interfaz gráfica de usuario (GUI)**, ya que el uso directo desde la terminal ofrece un control directo, agilidad y un entorno libre de distracciones, lo cual se alinea con un enfoque de productividad centrado en la concentración. Fue hecho de esta manera para priorizar la funcionalidad y la eficiencia en un entorno de texto puro, y **es la herramienta que uso a diario** para mis propias necesidades.
+
+## Futuras Mejoras
+
+Conforme pase el tiempo y en caso requiera añadirle más cosas para mi propio uso, se las añadiré poco a poco, lo primero que tengo en mente es una pequeña BD con **SQLITE** para tener un registro de las sesiones, horas de estudio y fechas en las que se estudió, las cuáles tal vez poder visualizar en un heatmap con seaborn. ***(Solo pensando en voz alta)***.
+
+## Instalación
+
+Para configurar y ejecutar Pydoro en tu sistema, sigue estos pasos:
+
+1.  **Clonar el Repositorio (o descargar el archivo `pydoro.py`):**
+    Si tienes Git, puedes clonar el repositorio:
+    ```bash
+    git clone [URL_DE_TU_REPOSITORIO]
+    cd proyect_pydoro
+    ```
+    Si no, descarga el archivo `pydoro.py` y colócalo en una carpeta dedicada a tu proyecto (ej. `proyect_pydoro`).
+
+2.  **Crear un Entorno Virtual (Recomendado):**
+    Navega a la carpeta de tu proyecto en la terminal y crea un entorno virtual para aislar las dependencias:
+    ```bash
+    python -m venv pydoro_venv
+    ```
+
+3.  **Activar el Entorno Virtual:**
+    * **Windows (PowerShell/CMD):**
+        ```powershell
+        .\pydoro_venv\Scripts\activate.bat
+        ```
+    * **Linux/macOS (Bash/Zsh):**
+        ```bash
+        source pydoro_venv/bin/activate
+        ```
+    Verás `(pydoro_venv)` en tu prompt, indicando que el entorno está activo.
+
+4.  **Instalar Dependencias:**
+    Con el entorno virtual activado, instala la librería `playsound`:
+    ```bash
+    pip install playsound
+    ```
+
+5.  **Archivos de Sonido:**
+    Descarga dos archivos de sonido cortos (ej., un "ding" para `bell.wav` y una "notificación" para `notif.wav`). Coloca ambos archivos en la **misma carpeta** donde se encuentra `pydoro.py`.
+
+## Uso
+
+Para ejecutar Pydoro, abre tu terminal (PowerShell en Windows, o tu terminal favorita en Linux/macOS), navega a la carpeta de tu proyecto, activa tu entorno virtual y ejecuta el script:
+
+```bash
+# 1. Navega a tu carpeta de proyecto (ejemplo)
+cd C:\Users\TuUsuario\Downloads\proyects\proyect_pydoro
+
+# 2. Activa el entorno virtual
+.\pydoro_venv\Scripts\activate.bat # Para Windows
+# source pydoro_venv/bin/activate   # Para Linux/macOS
+
+# 3. Ejecuta el script
+python pydoro.py
+
+## 🧑‍💻 Autor
+
+[Christian Vizcardo]
+[www.linkedin.com/in/christian-vizcardo]
