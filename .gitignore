@@ -1,0 +1,50 @@
+# Ignorar directorios de entornos virtuales
+.venv/
+env/
+venv/
+__pycache__/
+
+# Ignorar archivos compilados de Python
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar directorios y archivos de metadatos del IDE (VS Code)
+.vscode/ # Ignora la carpeta .vscode completa para no compartir configuraciones personales
+.history/ # Puede ser generado por algunas extensiones de VS Code
+
+# Ignorar archivos de paquetes y caché
+*.egg-info/
+.eggs/
+dist/
+build/
+*.whl
+
+# Ignorar archivos de Jupyter Notebook (si aplica más adelante)
+.ipynb_checkpoints/
+
+# Ignorar archivos específicos del sistema operativo
+.DS_Store # macOS
+Thumbs.db # Windows
+desktop.ini # Windows
+
+# Ignorar cualquier archivo de datos o logs que se generen o sean muy grandes
+# Para tu Pomodoro, es posible que no tengas estos ahora, pero son comunes
+# *.log
+# *.csv
+# *.xlsx
+# *.sqlite3
+
+# Archivos de configuración con información sensible (ej. API keys)
+# Si tuvieras un archivo con claves API o contraseñas, lo ignorarías aquí.
+# config.ini
+# .env
+
+# Archivos de sonido si son muy grandes o solo de tu preferencia local
+# Para tu proyecto Pomodoro, el notification.wav es parte del código,
+# así que lo IDEAL es NO ignorarlo si es pequeño y es un activo central.
+# Si fuera un archivo gigante o solo para pruebas locales, podrías ignorarlo así:
+# notification.wav
+git remote add origin https://github.com/christianV1zcardo/Proyecto_Pydoro.git
+git branch -M main
+git push -u origin main
