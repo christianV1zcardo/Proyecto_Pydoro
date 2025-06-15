@@ -8,9 +8,15 @@ import time  # Para manejar las pausas en la ejecución del programa
 import os    # Para interactuar con el sistema operativo (ej. limpiar la pantalla de la consola)
 import random # Para seleccionar frases motivadoras aleatorias
 from playsound import playsound # Para reproducir sonidos al final de cada fase
-import sys # Para manejar la entrada de teclado sin bloquear (parcialmente)
-import select # Para entrada no bloqueante en sistemas Unix/Linux
-import msvcrt # Para entrada no bloqueante en Windows
+
+# Importaciones para lectura de teclado no bloqueante (esencial para la pausa)
+import sys
+# select y termios/tty son para sistemas Unix/Linux (como Ubuntu, macOS)
+import select 
+if os.name == 'posix': # Solo importar para sistemas POSIX (Linux, macOS)
+    import termios, tty
+elif os.name == 'nt': # Solo importar para Windows
+    import msvcrt
 
 # ==============================================================================
 # Definición de códigos ANSI para colores y estilos en la terminal
@@ -24,7 +30,7 @@ BLUE = "\033[94m"       # Código para color azul brillante
 RED = "\033[91m"        # Código para color rojo brillante
 ORANGE = "\033[33m"     # Código para color naranja (estándar)
 LIGHT_GRAY = "\033[37m" # Gris claro (para texto secundario)
-# La barra de progreso es VERDE.
+# La barra de progreso es VERDE como solicitado.
 
 # ==============================================================================
 # Listas de frases motivadoras (Traducidas al Castellano)
@@ -127,7 +133,7 @@ def create_progress_bar(current_seconds, total_duration_seconds, bar_length=40):
     return f"[{colored_bar}] {percent_color}{percentage:.0f}%{RESET}"
 
 # ==============================================================================
-# Función auxiliar para verificar si hay entrada disponible (no bloqueante)
+# Funciones auxiliares para la lectura de teclado no bloqueante (REINTEGRADAS Y AJUSTADAS)
 # ==============================================================================
 def kbhit():
     """
@@ -142,9 +148,6 @@ def kbhit():
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         return bool(rlist)
 
-# ==============================================================================
-# Función auxiliar para leer una tecla (no bloqueante)
-# ==============================================================================
 def getch():
     """
     Lee una tecla presionada sin esperar Enter.
@@ -154,27 +157,25 @@ def getch():
         return msvcrt.getch().decode('utf-8')
     else: # Para Linux/macOS
         # Configura la terminal para modo crudo (raw mode) para leer caracteres individuales
-        # Esto es necesario para que getch no espere un Enter.
-        import tty, termios
         fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd)
+        old_settings = termios.tcgetattr(fd) # Guarda la configuración actual de la terminal
         try:
-            tty.setraw(sys.stdin.fileno())
-            ch = sys.stdin.read(1)
+            tty.setraw(fd) # Cambia a modo "raw"
+            ch = sys.stdin.read(1) # Lee un solo carácter
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings) # Restaura la configuración original
         return ch
 
 
 # ==============================================================================
-# Función principal para la cuenta regresiva de cualquier período
+# Función principal para la cuenta regresiva de cualquier período (AJUSTADA PARA PAUSA)
 # ==============================================================================
 def countdown_period(duration_seconds, phase_name, quote,
                      pomodoros_completed_session, short_breaks_completed_session, long_breaks_completed_session):
     """
     Realiza una cuenta regresiva para un período dado, mostrando el tiempo restante,
     una barra de progreso, contadores de sesión acumulados y una frase motivadora.
-    Permite pausar/reanudar con Enter.
+    Permite pausar/reanudar presionando Enter.
     Al finalizar, reproduce un sonido.
 
     Returns:
@@ -202,21 +203,32 @@ def countdown_period(duration_seconds, phase_name, quote,
         # Muestra la barra de progreso y el temporizador
         print(f"{create_progress_bar(current_seconds, total_duration_seconds_initial)} Tiempo restante: {display_timer(current_seconds)}")
         
-        # Mensaje de pausa
+        # Mensaje de pausa / reanudación
         if is_paused:
-            print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona Enter para reanudar...{RESET}")
+            print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
         else:
-            print(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para pausar...{RESET}") # Instrucción para pausar
+            print(f"\n{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}") 
 
-        # --- Manejo de la pausa ---
-        # No usamos kbhit/getch directamente aquí para la pausa porque input() bloquea
-        # y time.sleep() bloquea también. La pausa por Enter se gestiona en el input()
-        # al inicio de cada fase o durante la interrupción Ctrl+C.
-        # Para una pausa en tiempo real sin bloquear el loop de 1 segundo,
-        # se necesitarían librerías más avanzadas o multihilo que no son parte de este nivel.
+        # --- Lógica de Pausa/Reanudar con Enter ---
+        # Dividimos el sleep de 1 segundo en pequeños intervalos para chequear la entrada
+        for _ in range(10): # 10 iteraciones de 0.1 segundos = 1 segundo total
+            if kbhit(): # Si se ha presionado una tecla
+                key = getch() # Lee la tecla
+                # Si la tecla es Enter, alternar estado de pausa
+                if key in ('\r', '\n'): # '\r' es Enter en Windows, '\n' es Enter en Linux/macOS
+                    is_paused = not is_paused 
+                    # Consumir el resto de los caracteres en el buffer después de Enter
+                    # Esto evita múltiples pausas/reanudos por una sola pulsación rápida
+                    while kbhit():
+                        getch()
+                    # Romper el bucle de sleep fraccionado para actualizar la pantalla inmediatamente
+                    break 
+                else: # Si es otra tecla, consúmela para que no aparezca en pantalla, pero no pauses
+                    pass # Opcionalmente, podrías agregar un mensaje como "Ignorando tecla..."
+            time.sleep(0.1) # Pausa pequeña para no consumir CPU y permitir chequeo de entrada
 
-        time.sleep(1) # Pausa normal de 1 segundo
-        current_seconds -= 1 # Decrementa el tiempo
+        if not is_paused: # Solo decrementa el tiempo si NO estamos en pausa
+            current_seconds -= 1
 
     clear_screen()
     print(f"{BOLD}{phase_color}--- FASE DE {phase_name} TERMINADA ---{RESET}")
@@ -240,7 +252,7 @@ def countdown_period(duration_seconds, phase_name, quote,
     return True # El período se completó naturalmente
 
 # ==============================================================================
-# Función principal para ejecutar los ciclos Pomodoro
+# Función principal para ejecutar los ciclos Pomodoro (AJUSTADA PARA BLOQUEO CON INPUT)
 # ==============================================================================
 def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25, num_cycles=4,
                  pomodoros_completed_session_total=0, short_breaks_completed_session_total=0, long_breaks_completed_session_total=0):
@@ -262,6 +274,7 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
     short_break_seconds = short_break_minutes * 60
     long_break_seconds = long_break_minutes * 60
 
+    # Siempre pide confirmación para iniciar el primer período de trabajo
     input(f"{BOLD}{GREEN}Presiona Enter para iniciar el primer período de TRABAJO...{RESET}")
 
     for i in range(1, num_cycles + 1):
@@ -291,7 +304,7 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
         break_duration = long_break_seconds if is_long_break else short_break_seconds
         break_quote = random.choice(BREAK_QUOTES)
 
-        # Pide confirmación para todos los descansos
+        # Siempre pide confirmación para iniciar todos los descansos
         input(f"{BOLD}{ORANGE}Presiona Enter para iniciar el {break_message}...{RESET}")
         
         try:
@@ -313,7 +326,7 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
             else:
                 print(f"{BOLD}{GREEN}Saltando al próximo período de trabajo...{RESET}")
 
-        # Pide confirmación para iniciar el próximo período de trabajo
+        # Siempre pide confirmación para iniciar el próximo período de trabajo
         if i < num_cycles:
             input(f"{BOLD}{GREEN}Presiona Enter para iniciar el próximo período de TRABAJO...{RESET}")
 
@@ -322,7 +335,7 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
     return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks
 
 # ==============================================================================
-# Función para el temporizador simple (cuenta hacia arriba)
+# Función para el temporizador simple (cuenta hacia arriba) (AJUSTADA PARA PAUSA)
 # ==============================================================================
 def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_long_breaks_session):
     """
@@ -334,9 +347,10 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
     print(f"{BOLD}{BLUE}--- TEMPORIZADOR SIMPLE ---{RESET}")
     print(f"{BOLD}{LIGHT_GRAY}Presiona Ctrl+C en cualquier momento para detener.{RESET}\n")
 
-    start_time = time.time() # Registrar el tiempo de inicio
-    
-    elapsed_minutes = 0 # Inicializar en 0, se actualizará si se detiene
+    current_elapsed_seconds = 0 # Inicia contando desde 0
+    is_paused = False # Estado de pausa para el temporizador simple
+    # No necesitamos pause_start_time aquí ya que current_elapsed_seconds
+    # solo se incrementa cuando no está en pausa.
 
     try:
         while True:
@@ -347,16 +361,37 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
             print("-" * 60) # Línea separadora estática
 
             # Calcula y muestra el tiempo transcurrido
-            current_elapsed_seconds = int(time.time() - start_time)
+            # current_elapsed_seconds se actualiza al final del ciclo si no está pausado
             display_str = display_timer(current_elapsed_seconds) # Reutiliza display_timer
             
             print(f"\n{BOLD}Tiempo transcurrido: {display_str}{RESET}")
-            print(f"\n{BOLD}{LIGHT_GRAY}Presiona Ctrl+C para detener...{RESET}")
             
-            time.sleep(1)
+            # Mensaje de pausa / reanudación
+            if is_paused:
+                print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
+            else:
+                print(f"\n{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}") 
+
+            # --- Lógica de Pausa/Reanudar con Enter para temporizador simple ---
+            for _ in range(10): # 10 iteraciones de 0.1 segundos = 1 segundo total
+                if kbhit(): # Si se ha presionado una tecla
+                    key = getch() # Lee la tecla
+                    if key in ('\r', '\n'): # Si la tecla es Enter
+                        is_paused = not is_paused 
+                        # Consumir el resto de los caracteres en el buffer después de Enter
+                        while kbhit():
+                            getch()
+                        break 
+                    else: # Si es otra tecla, consúmela para que no aparezca en pantalla
+                        pass 
+                time.sleep(0.1) # Pausa pequeña para no consumir CPU y permitir chequeo de entrada
+
+            if not is_paused: # Solo incrementa el tiempo si NO estamos en pausa
+                current_elapsed_seconds += 1 # Incrementa el tiempo transcurrido
+
     except KeyboardInterrupt:
         clear_screen()
-        current_elapsed_seconds = int(time.time() - start_time) # Calcular segundos finales al interrumpir
+        # current_elapsed_seconds ya tiene el valor correcto del tiempo no pausado
         elapsed_minutes = int(current_elapsed_seconds / 60) # Convertir a minutos
         
         print(f"{RED}{BOLD}¡Temporizador Simple interrumpido!{RESET}")
@@ -368,8 +403,6 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
             print(f"{BOLD}{GREEN}Sumando tiempo al total de trabajo...{RESET}")
             return elapsed_minutes
     
-    # Este return solo se alcanzaría si el bucle while True no fuera interrumpido, lo cual no es el caso aquí
-    # Pero si por alguna razón saliera, se devolverían los minutos acumulados
     return elapsed_minutes
 
 
@@ -399,8 +432,7 @@ def main():
 
     while True: # Bucle infinito para mantener el script activo
         clear_screen()
-        print(f"{BOLD}{GREEN}--- Bienvenido al Temporizador Pydoro ---{RESET}")
-        # Mensaje motivacional fijo reinsertado
+        print(f"{BOLD}{GREEN}--- Bienvenido al Temporador Pydoro Personalizado ---{RESET}")
         print(f"{BOLD}{LIGHT_GRAY}Outwork others consistently.{RESET}\n")
 
 
