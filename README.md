@@ -1,4 +1,10 @@
-# Mejoras - 22/06/2025
+# Mejoras post DEL 22/06/2025
+
+Pydoro ha evolucionado de un simple temporizador y Pomodoro a una herramienta integral para la gestión de la productividad diaria. Ahora, permite al usuario registrar en todo momento la actividad que esté realizando (como desayunar, trabajar o estudiar), midiendo el tiempo dedicado a cada una a lo largo de la sesión. Esto facilita que el usuario conozca de forma específica la distribución de su tiempo diario.
+
+Además, se han implementado subcategorías personalizables para las actividades de 'Estudio', 'Trabajo' y 'Lectura', permitiendo un seguimiento más granular del tiempo productivo. Es importante destacar que los temporizadores Pomodoro y los temporizadores "internos" solo pueden iniciarse dentro de estas tres categorías principales, que requieren un enfoque estructurado. Para otras actividades, como desayunar o tomar una siesta, el sistema registrará automáticamente el tiempo dedicado desde el momento en que se selecciona la actividad, sin la necesidad de activar un temporizador específico. Finalmente, Pydoro ofrece una opción para visualizar la línea de tiempo de actividades (en formato lista), mostrando la duración y los rangos horarios de cada una, complementada con un resumen claro de las horas y minutos acumulados por actividad en la sesión.
+
+# Mejoras AL 22/06/2025
 
 De la mano a lo anterior mencionado (que pydoro más que un proyecto para mi portafolio, es mi proyecto personal porque ninguno de los temporizadores ni medidores de productividad disponibles en el mercado me convence) Hice un par de mejoras hace varios días que recién cargaré, actualmente estudio programación y matemáticas, por lo que le di a pydoro la capacidad de asignar el tiempo que paso tanto en pomodoros cómo en el temporizador simple a las 2 categorías, para tenr claridad de cuánto tiempo le dediqué a cada una en el día. Añado este commit porque estoy a punto de hacer un par de mejoras más grandes por sobre esta y necesito tener esto guardado en caso lo que intente no funcione y todo explote :p
 
@@ -80,6 +86,7 @@ cd C:\Users\TuUsuario\Downloads\proyects\proyect_pydoro
 
 # 3. Ejecuta el script
 python pydoro.py
+```
 
 ## 🧑‍💻 Autor
 
