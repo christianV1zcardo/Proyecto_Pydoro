@@ -8,11 +8,12 @@ import time  # Para manejar las pausas en la ejecución del programa
 import os    # Para interactuar con el sistema operativo (ej. limpiar la pantalla de la consola)
 import random # Para seleccionar frases motivadoras aleatorias
 from playsound import playsound # Para reproducir sonidos al final de cada fase
+import datetime # Para registrar la fecha y hora en el historial (aunque el historial no se guarda en archivo)
 
 # Importaciones para lectura de teclado no bloqueante (esencial para la pausa)
 import sys
 # select y termios/tty son para sistemas Unix/Linux (como Ubuntu, macOS)
-import select 
+import select
 if os.name == 'posix': # Solo importar para sistemas POSIX (Linux, macOS)
     import termios, tty
 elif os.name == 'nt': # Solo importar para Windows
@@ -77,16 +78,17 @@ BREAK_QUOTES = [
     "La verdadera fuerza se encuentra en el equilibrio."
 ]
 
+# --- Variables globales para el tiempo categorizado (NO PERSISTENTE en archivo) ---
+total_work_time_programming = 0
+total_work_time_mathematics = 0
+
 # ==============================================================================
-# Función auxiliar para limpiar la pantalla de la consola
+# Funciones auxiliares para la limpieza de pantalla, colores y temporizador
 # ==============================================================================
 def clear_screen():
     """Limpia la pantalla de la consola."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-# ==============================================================================
-# Función para formatear y mostrar el tiempo restante/transcurrido
-# ==============================================================================
 def display_timer(total_seconds):
     """
     Formatea el tiempo total en segundos a un formato de minutos:segundos (MM:SS)
@@ -95,21 +97,17 @@ def display_timer(total_seconds):
     minutes = total_seconds // 60
     seconds = total_seconds % 60
     
-    # Aplica color al tiempo restante/transcurrido
     if total_seconds <= 10:
         color = RED
-    elif total_seconds <= 60 and total_seconds > 0: # Para temporizador regresivo
+    elif total_seconds <= 60 and total_seconds > 0:
         color = YELLOW
-    elif total_seconds > 0: # Para temporizador progresivo o regresivo en fase normal
+    elif total_seconds > 0:
         color = GREEN
-    else: # Cuando el tiempo llega a 0 (para regresivo)
-        color = GREEN # Color al finalizar
+    else:
+        color = GREEN
 
     return f"{BOLD}{color}{minutes:02d}:{seconds:02d}{RESET}"
 
-# ==============================================================================
-# Función para generar la barra de progreso visual en la terminal
-# ==============================================================================
 def create_progress_bar(current_seconds, total_duration_seconds, bar_length=40):
     """
     Crea una cadena de barra de progreso que representa el avance visualmente.
@@ -121,7 +119,6 @@ def create_progress_bar(current_seconds, total_duration_seconds, bar_length=40):
 
     filled_chars = int(bar_length * percentage / 100)
     
-    # La parte llena de la barra será VERDE, el resto gris claro
     colored_bar = f"{GREEN}█{RESET}" * filled_chars + f"{LIGHT_GRAY}-{RESET}" * (bar_length - filled_chars)
     
     percent_color = GREEN
@@ -133,7 +130,7 @@ def create_progress_bar(current_seconds, total_duration_seconds, bar_length=40):
     return f"[{colored_bar}] {percent_color}{percentage:.0f}%{RESET}"
 
 # ==============================================================================
-# Funciones auxiliares para la lectura de teclado no bloqueante (REINTEGRADAS Y AJUSTADAS)
+# Funciones auxiliares para la lectura de teclado no bloqueante
 # ==============================================================================
 def kbhit():
     """
@@ -143,8 +140,6 @@ def kbhit():
     if os.name == 'nt': # Para Windows
         return msvcrt.kbhit()
     else: # Para Linux/macOS
-        # select.select espera a que el sys.stdin esté listo para leer
-        # y tiene un timeout de 0 para que no bloquee
         rlist, _, _ = select.select([sys.stdin], [], [], 0)
         return bool(rlist)
 
@@ -156,19 +151,59 @@ def getch():
     if os.name == 'nt': # Para Windows
         return msvcrt.getch().decode('utf-8')
     else: # Para Linux/macOS
-        # Configura la terminal para modo crudo (raw mode) para leer caracteres individuales
         fd = sys.stdin.fileno()
-        old_settings = termios.tcgetattr(fd) # Guarda la configuración actual de la terminal
+        old_settings = termios.tcgetattr(fd)
         try:
-            tty.setraw(fd) # Cambia a modo "raw"
-            ch = sys.stdin.read(1) # Lee un solo carácter
+            tty.setraw(fd)
+            ch = sys.stdin.read(1)
         finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings) # Restaura la configuración original
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ch
+
+# ==============================================================================
+# Funciones para categorización de tiempo (sin guardar en archivo)
+# ==============================================================================
+def seleccionar_categoria():
+    """Permite al usuario seleccionar una categoría para asignar el tiempo."""
+    while True:
+        print(f"\n{BOLD}¿A qué categoría quieres asignar este tiempo?{RESET}")
+        print(f"  {GREEN}1. Programación{RESET}")
+        print(f"  {BLUE}2. Matemáticas{RESET}")
+        print(f"  {LIGHT_GRAY}3. No asignar (General){RESET}")
+        opcion = input(f"{BOLD}Elige una opción (1-3): {RESET}").strip()
+        if opcion == '1':
+            return "Programacion"
+        elif opcion == '2':
+            return "Matematicas"
+        elif opcion == '3':
+            return None
+        else:
+            print(f"{RED}Opción no válida. Intenta de nuevo.{RESET}")
+            time.sleep(1)
+
+def asignar_tiempo_a_categoria(duracion_minutos, categoria):
+    """Asigna el tiempo a la categoría global (NO se guarda en archivo)."""
+    global total_work_time_programming, total_work_time_mathematics
+    if categoria == "Programacion":
+        total_work_time_programming += duracion_minutos
+    elif categoria == "Matematicas":
+        total_work_time_mathematics += duracion_minutos
+
+def mostrar_tiempo_categorizado():
+    """
+    Muestra el tiempo de trabajo categorizado para la sesión actual.
+    Este tiempo NO se guarda persistentemente en un archivo.
+    """
+    clear_screen()
+    print(f"{BOLD}{BLUE}--- Tiempo de Trabajo Categorizado (Sesión Actual) ---{RESET}")
+    print(f"{GREEN}Total Programación: {format_time_hh_mm(total_work_time_programming)}{RESET}")
+    print(f"{BLUE}Total Matemáticas: {format_time_hh_mm(total_work_time_mathematics)}{RESET}")
+    print(f"{LIGHT_GRAY}(Estos totales se reinician al cerrar el programa){RESET}")
+    input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
 
 
 # ==============================================================================
-# Función principal para la cuenta regresiva de cualquier período (AJUSTADA PARA PAUSA)
+# Función principal para la cuenta regresiva de cualquier período
 # ==============================================================================
 def countdown_period(duration_seconds, phase_name, quote,
                      pomodoros_completed_session, short_breaks_completed_session, long_breaks_completed_session):
@@ -188,60 +223,46 @@ def countdown_period(duration_seconds, phase_name, quote,
     
     is_paused = False
 
-    # Bucle principal de la cuenta regresiva
     while current_seconds >= 0:
         clear_screen()
         print(f"{BOLD}{phase_color}--- FASE DE {phase_name} ---{RESET}")
         
-        # Muestra los contadores de la sesión en la parte superior
         print(f"{BOLD}Sesión: {GREEN}Pomodoros: {pomodoros_completed_session}{RESET} | {ORANGE}Descansos: {short_breaks_completed_session}{RESET} | {BLUE}Descansos largos: {long_breaks_completed_session}{RESET}") 
-        print("-" * 60) # Línea separadora estática para consistencia
+        print("-" * 60)
 
-        # Muestra la frase motivadora
         print(f"\n{LIGHT_GRAY}\"{quote}\"{RESET}\n")
 
-        # Muestra la barra de progreso y el temporizador
         print(f"{create_progress_bar(current_seconds, total_duration_seconds_initial)} Tiempo restante: {display_timer(current_seconds)}")
         
-        # Mensaje de pausa / reanudación
         if is_paused:
             print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
         else:
             print(f"\n{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}") 
 
-        # --- Lógica de Pausa/Reanudar con Enter ---
-        # Dividimos el sleep de 1 segundo en pequeños intervalos para chequear la entrada
-        for _ in range(10): # 10 iteraciones de 0.1 segundos = 1 segundo total
-            if kbhit(): # Si se ha presionado una tecla
-                key = getch() # Lee la tecla
-                # Si la tecla es Enter, alternar estado de pausa
-                if key in ('\r', '\n'): # '\r' es Enter en Windows, '\n' es Enter en Linux/macOS
+        for _ in range(10):
+            if kbhit():
+                key = getch()
+                if key in ('\r', '\n'):
                     is_paused = not is_paused 
-                    # Consumir el resto de los caracteres en el buffer después de Enter
-                    # Esto evita múltiples pausas/reanudos por una sola pulsación rápida
                     while kbhit():
                         getch()
-                    # Romper el bucle de sleep fraccionado para actualizar la pantalla inmediatamente
                     break 
-                else: # Si es otra tecla, consúmela para que no aparezca en pantalla, pero no pauses
-                    pass # Opcionalmente, podrías agregar un mensaje como "Ignorando tecla..."
-            time.sleep(0.1) # Pausa pequeña para no consumir CPU y permitir chequeo de entrada
+                else:
+                    pass
+            time.sleep(0.1)
 
-        if not is_paused: # Solo decrementa el tiempo si NO estamos en pausa
+        if not is_paused:
             current_seconds -= 1
 
     clear_screen()
     print(f"{BOLD}{phase_color}--- FASE DE {phase_name} TERMINADA ---{RESET}")
     print(f"¡{BOLD}{phase_color}{phase_name}{RESET} completado! Es hora de cambiar de fase.\n")
 
-    # ==========================================================================
-    # Lógica para reproducir el sonido de notificación
-    # ==========================================================================
     try:
         if "TRABAJO" in phase_name:
-            sound_file = 'bell.wav' # Sonido para el final del trabajo
+            sound_file = 'bell.wav'
         else:
-            sound_file = 'notif.wav' # Sonido para el final de los descansos
+            sound_file = 'notif.wav'
             
         playsound(sound_file) 
     except Exception as e:
@@ -249,10 +270,10 @@ def countdown_period(duration_seconds, phase_name, quote,
         print(f"{RED}Asegúrate de que '{sound_file}' exista en la misma carpeta y playsound esté instalado correctamente.{RESET}")
 
     time.sleep(3)
-    return True # El período se completó naturalmente
+    return True
 
 # ==============================================================================
-# Función principal para ejecutar los ciclos Pomodoro (AJUSTADA PARA BLOQUEO CON INPUT)
+# Función principal para ejecutar los ciclos Pomodoro
 # ==============================================================================
 def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25, num_cycles=4,
                  pomodoros_completed_session_total=0, short_breaks_completed_session_total=0, long_breaks_completed_session_total=0):
@@ -274,7 +295,6 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
     short_break_seconds = short_break_minutes * 60
     long_break_seconds = long_break_minutes * 60
 
-    # Siempre pide confirmación para iniciar el primer período de trabajo
     input(f"{BOLD}{GREEN}Presiona Enter para iniciar el primer período de TRABAJO...{RESET}")
 
     for i in range(1, num_cycles + 1):
@@ -289,9 +309,19 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
                                                    long_breaks_completed_session_total + current_set_long_breaks)
             if completed_naturally:
                 current_set_pomodoros += 1
+                # --- Lógica de asignación de categoría para el tiempo de trabajo ---
+                categoria_asignada = seleccionar_categoria()
+                if categoria_asignada:
+                    asignar_tiempo_a_categoria(work_minutes, categoria_asignada)
+                    print(f"Tiempo de {work_minutes} minutos asignado a {categoria_asignada}.")
+                else:
+                    print("Tiempo no asignado a una categoría específica.")
+                # No se registra en archivo: registrar_sesion("Trabajo Pomodoro", work_minutes, categoria_asignada)
+            else:
+                pass
         except KeyboardInterrupt:
             clear_screen()
-            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el TRABAJO!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower()
+            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el TRABAJO!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower().strip()
             if choice == 'c':
                 print(f"{BOLD}{RED}¡Pomodoro cancelado! Vuelve cuando estés listo. 👋{RESET}")
                 return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks 
@@ -304,7 +334,6 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
         break_duration = long_break_seconds if is_long_break else short_break_seconds
         break_quote = random.choice(BREAK_QUOTES)
 
-        # Siempre pide confirmación para iniciar todos los descansos
         input(f"{BOLD}{ORANGE}Presiona Enter para iniciar el {break_message}...{RESET}")
         
         try:
@@ -317,16 +346,18 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
                     current_set_long_breaks += 1
                 else:
                     current_set_short_breaks += 1
+                # No se registra en archivo: registrar_sesion(break_message, break_duration / 60)
+            else:
+                pass
         except KeyboardInterrupt:
             clear_screen()
-            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el {break_message}!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower()
+            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el {break_message}!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower().strip()
             if choice == 'c':
                 print(f"{BOLD}{RED}¡Pomodoro cancelado! Vuelve cuando estés listo. 👋{RESET}")
                 return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks 
             else:
                 print(f"{BOLD}{GREEN}Saltando al próximo período de trabajo...{RESET}")
 
-        # Siempre pide confirmación para iniciar el próximo período de trabajo
         if i < num_cycles:
             input(f"{BOLD}{GREEN}Presiona Enter para iniciar el próximo período de TRABAJO...{RESET}")
 
@@ -335,7 +366,7 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
     return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks
 
 # ==============================================================================
-# Función para el temporizador simple (cuenta hacia arriba) (AJUSTADA PARA PAUSA)
+# Función para el temporizador simple (cuenta hacia arriba)
 # ==============================================================================
 def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_long_breaks_session):
     """
@@ -347,62 +378,68 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
     print(f"{BOLD}{BLUE}--- TEMPORIZADOR SIMPLE ---{RESET}")
     print(f"{BOLD}{LIGHT_GRAY}Presiona Ctrl+C en cualquier momento para detener.{RESET}\n")
 
-    current_elapsed_seconds = 0 # Inicia contando desde 0
-    is_paused = False # Estado de pausa para el temporizador simple
-    # No necesitamos pause_start_time aquí ya que current_elapsed_seconds
-    # solo se incrementa cuando no está en pausa.
-
+    current_elapsed_seconds = 0
+    is_paused = False
+    
     try:
         while True:
             clear_screen()
             print(f"{BOLD}{BLUE}--- TEMPORIZADOR SIMPLE ---{RESET}")
-            # Muestra los contadores de la sesión
             print(f"{BOLD}Sesión: {GREEN}Pomodoros: {total_pomodoros_session}{RESET} | {ORANGE}Descansos: {total_short_breaks_session}{RESET} | {BLUE}Descansos largos: {total_long_breaks_session}{RESET}") 
-            print("-" * 60) # Línea separadora estática
+            print("-" * 60)
 
-            # Calcula y muestra el tiempo transcurrido
-            # current_elapsed_seconds se actualiza al final del ciclo si no está pausado
-            display_str = display_timer(current_elapsed_seconds) # Reutiliza display_timer
+            display_str = display_timer(current_elapsed_seconds)
             
             print(f"\n{BOLD}Tiempo transcurrido: {display_str}{RESET}")
             
-            # Mensaje de pausa / reanudación
             if is_paused:
                 print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
             else:
                 print(f"\n{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}") 
 
-            # --- Lógica de Pausa/Reanudar con Enter para temporizador simple ---
-            for _ in range(10): # 10 iteraciones de 0.1 segundos = 1 segundo total
-                if kbhit(): # Si se ha presionado una tecla
-                    key = getch() # Lee la tecla
-                    if key in ('\r', '\n'): # Si la tecla es Enter
+            for _ in range(10):
+                if kbhit():
+                    key = getch()
+                    if key in ('\r', '\n'):
                         is_paused = not is_paused 
-                        # Consumir el resto de los caracteres en el buffer después de Enter
                         while kbhit():
                             getch()
                         break 
-                    else: # Si es otra tecla, consúmela para que no aparezca en pantalla
+                    else:
                         pass 
-                time.sleep(0.1) # Pausa pequeña para no consumir CPU y permitir chequeo de entrada
+                time.sleep(0.1)
 
-            if not is_paused: # Solo incrementa el tiempo si NO estamos en pausa
-                current_elapsed_seconds += 1 # Incrementa el tiempo transcurrido
+            if not is_paused:
+                current_elapsed_seconds += 1
 
     except KeyboardInterrupt:
         clear_screen()
-        # current_elapsed_seconds ya tiene el valor correcto del tiempo no pausado
-        elapsed_minutes = int(current_elapsed_seconds / 60) # Convertir a minutos
+        elapsed_minutes = int(current_elapsed_seconds / 60)
         
         print(f"{RED}{BOLD}¡Temporizador Simple interrumpido!{RESET}")
-        choice = input(f"{BOLD}Tiempo transcurrido: {display_timer(current_elapsed_seconds)}. ¿Qué quieres hacer? {YELLOW}[S]{RESET}umar tiempo y volver al menú principal / {RED}[C]{RESET}ancelar y no sumar tiempo: ").lower()
+        choice = input(f"{BOLD}Tiempo transcurrido: {display_timer(current_elapsed_seconds)}. ¿Qué quieres hacer? {YELLOW}[S]{RESET}umar tiempo y volver al menú principal / {RED}[C]{RESET}ancelar y no sumar tiempo: ").lower().strip()
         if choice == 'c':
             print(f"{BOLD}{RED}Temporizador cancelado. Tiempo no sumado. 👋{RESET}")
-            return 0 # No se suma tiempo al cancelar
-        else: # Por defecto, si no es 'c', se suma el tiempo
+            return 0
+        else:
             print(f"{BOLD}{GREEN}Sumando tiempo al total de trabajo...{RESET}")
+            categoria_asignada = seleccionar_categoria()
+            if categoria_asignada:
+                asignar_tiempo_a_categoria(elapsed_minutes, categoria_asignada)
+                print(f"Tiempo de {elapsed_minutes} minutos asignado a {categoria_asignada}.")
+            else:
+                print("Tiempo no asignado a una categoría específica.")
+            # No se registra en archivo: registrar_sesion("Timer Simple", elapsed_minutes, categoria_asignada)
             return elapsed_minutes
     
+    elapsed_minutes = int(current_elapsed_seconds / 60)
+    categoria_asignada = seleccionar_categoria()
+    if categoria_asignada:
+        asignar_tiempo_a_categoria(elapsed_minutes, categoria_asignada)
+        print(f"Tiempo de {elapsed_minutes} minutos asignado a {categoria_asignada}.")
+    else:
+        print("Tiempo no asignado a una categoría específica.")
+    # No se registra en archivo: registrar_sesion("Timer Simple", elapsed_minutes, categoria_asignada)
     return elapsed_minutes
 
 
@@ -428,15 +465,14 @@ def main():
     total_short_breaks_session = 0
     total_long_breaks_session = 0
     total_work_minutes_session = 0
-    total_break_minutes_session = 0 # Incluye cortos y largos
+    total_break_minutes_session = 0
 
-    while True: # Bucle infinito para mantener el script activo
+    while True:
         clear_screen()
         print(f"{BOLD}{GREEN}--- Bienvenido al Temporador Pydoro Personalizado ---{RESET}")
         print(f"{BOLD}{LIGHT_GRAY}Outwork others consistently.{RESET}\n")
 
 
-        # Muestra el resumen de la sesión si ya se ha completado algo
         if total_pomodoros_session > 0 or total_short_breaks_session > 0 or total_long_breaks_session > 0:
             print(f"{BOLD}{BLUE}--- Resumen de la Sesión Actual ---{RESET}")
             print(f"{GREEN}Pomodoros completados: {total_pomodoros_session}{RESET}")
@@ -447,33 +483,32 @@ def main():
             print(f"{BOLD}----------------------------------{RESET}\n")
 
         try:
-            # Nuevas opciones en el menú principal
             print(f"{BOLD}Selecciona una opción:{RESET}")
             print(f"  {GREEN}1. Iniciar nuevo conjunto de ciclos Pomodoro{RESET}")
             print(f"  {BLUE}2. Iniciar Temporizador Simple (cuenta hacia arriba){RESET}")
-            print(f"  {RED}3. Salir del programa{RESET}")
+            print(f"  {ORANGE}3. Ver Tiempo de Trabajo Categorizado{RESET}") # Opción 3 ahora es ver tiempo categorizado
+            print(f"  {RED}4. Salir del programa{RESET}") # Opción 4 ahora es salir
             
-            # Bucle para validar la entrada del menú principal
             while True:
-                choice = input(f"{BOLD}Tu elección (1, 2 o 3): {RESET}").strip() # .strip() para quitar espacios
-                if choice in ['1', '2', '3']:
-                    break # Salir del bucle si la elección es válida
+                choice = input(f"{BOLD}Tu elección (1-4): {RESET}").strip()
+                if choice in ['1', '2', '3', '4']:
+                    break
                 else:
-                    print(f"{RED}Opción no válida. Por favor, ingresa '1', '2' o '3'.{RESET}")
+                    print(f"{RED}Opción no válida. Por favor, ingresa un número entre 1 y 4.{RESET}")
+                    time.sleep(1)
             
-            if choice == '1': # Opción: Iniciar Pomodoro
-                # Bucle para validar la entrada de personalización
+            if choice == '1':
                 while True:
                     customize_choice = input(f"{BOLD}¿Quieres personalizar la configuración para este conjunto de ciclos? ({GREEN}s{RESET}/{RED}n{RESET}): {RESET}").lower().strip()
                     if customize_choice in ['s', 'n']:
                         break
                     else:
                         print(f"{RED}Opción no válida. Por favor, ingresa 's' o 'n'.{RESET}")
+                        time.sleep(1)
                 
-                work, short_break, long_break, cycles = 60, 10, 25, 4 # Valores por defecto ajustados
+                work, short_break, long_break, cycles = 60, 10, 25, 4
 
                 if customize_choice == 's':
-                    # Bucle para validar entrada numérica de duraciones y ciclos
                     while True:
                         try:
                             work = int(input(f"{YELLOW}Duración del período de TRABAJO (minutos): {RESET}"))
@@ -483,10 +518,12 @@ def main():
                             
                             if work <= 0 or short_break <= 0 or long_break <= 0 or cycles <= 0:
                                 print(f"{RED}Las duraciones y el número de ciclos deben ser valores POSITIVOS. Intenta de nuevo.{RESET}")
+                                time.sleep(1)
                             else:
-                                break # Salir del bucle si todas las entradas son válidas
+                                break
                         except ValueError:
                             print(f"{RED}Entrada inválida. Por favor, ingresa SOLO NÚMEROS enteros.{RESET}")
+                            time.sleep(1)
                     
                 completed_pom, completed_short_break, completed_long_break = run_pomodoro(
                     work, short_break, long_break, cycles,
@@ -507,7 +544,7 @@ def main():
                 print(f"{BLUE}Descansos largos completados: {completed_long_break}{RESET}")
                 input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
                 
-            elif choice == '2': # Opción: Iniciar Temporizador Simple
+            elif choice == '2':
                 elapsed_minutes_simple = run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_long_breaks_session)
                 total_work_minutes_session += elapsed_minutes_simple
                 clear_screen()
@@ -515,7 +552,10 @@ def main():
                 print(f"{BOLD}Tiempo añadido al trabajo: {GREEN}{format_time_hh_mm(elapsed_minutes_simple)}{RESET}")
                 input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
 
-            elif choice == '3': # Opción: Salir del programa
+            elif choice == '3': # Era opción 4, ahora es 3
+                mostrar_tiempo_categorizado()
+
+            elif choice == '4': # Era opción 5, ahora es 4
                 clear_screen()
                 print(f"{BOLD}{BLUE}¡Gracias por usar el Temporador Pydoro!{RESET}")
                 print(f"{BOLD}Resumen final de la Sesión:{RESET}")
@@ -526,9 +566,15 @@ def main():
                 print(f"{BOLD}Tiempo total de descanso: {ORANGE}{format_time_hh_mm(total_break_minutes_session)}{RESET}")
                 print(f"\n{BOLD}{LIGHT_GRAY}¡Hasta pronto! 👋{RESET}")
                 time.sleep(3)
-                break # Sale del bucle infinito, terminando el script
+                break
 
-        except Exception as e: # Captura excepciones generales que no sean ValueError de las entradas numéricas
+        except KeyboardInterrupt:
+            print(f"\n{RED}¡CTRL+C detectado en el menú principal!{RESET}")
+            print(f"{RED}Por favor, usa la opción '4' para salir de forma segura.{RESET}")
+            time.sleep(1)
+            continue
+
+        except Exception as e:
             print(f"{RED}Ocurrió un error inesperado: {e}{RESET}")
             print(f"{RED}Volviendo al menú principal.{RESET}")
             time.sleep(1)
@@ -537,4 +583,9 @@ def main():
 # Punto de entrada del programa
 # ==============================================================================
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n{RED}¡Pydoro se cerró abruptamente con CTRL+C fuera del menú!{RESET}")
+    finally:
+        print("Gracias por usar Pydoro.")

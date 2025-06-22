@@ -1,3 +1,7 @@
+# Mejoras - 22/06/2025
+
+De la mano a lo anterior mencionado (que pydoro más que un proyecto para mi portafolio, es mi proyecto personal porque ninguno de los temporizadores ni medidores de productividad disponibles en el mercado me convence) Hice un par de mejoras hace varios días que recién cargaré, actualmente estudio programación y matemáticas, por lo que le di a pydoro la capacidad de asignar el tiempo que paso tanto en pomodoros cómo en el temporizador simple a las 2 categorías, para tenr claridad de cuánto tiempo le dediqué a cada una en el día. Añado este commit porque estoy a punto de hacer un par de mejoras más grandes por sobre esta y necesito tener esto guardado en caso lo que intente no funcione y todo explote :p
+
 # Pydoro - Tu Temporizador Pomodoro Personalizado
 
 Pydoro es un temporizador Pomodoro personalizable y una herramienta de gestión del tiempo, diseñada para funcionar completamente en la terminal. Nace no tanto como un proyecto para mostrar al público, sino como una **herramienta personal**. La razón es que ningún pomodoro o medidor de tiempo existente en el mercado cumplía con mis necesidades y mi propia forma de trabajar y estudiar. Por ello, Pydoro ha sido desarrollado para ser mi compañero diario en la búsqueda de la concentración y la productividad.

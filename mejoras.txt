@@ -1,0 +1,2 @@
+- BD SQLITE
+- En algún momento funcionará en una terminal normal?
