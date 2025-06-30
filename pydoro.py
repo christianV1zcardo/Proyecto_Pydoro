@@ -19,20 +19,23 @@ if os.name == 'posix': # Solo importar para sistemas POSIX (Linux, macOS)
 elif os.name == 'nt': # Solo importar para Windows
     import msvcrt
 
+# Nuevo: Registra el tiempo de inicio del script
+script_start_time = datetime.datetime.now()
+
 # ==============================================================================
 # Definición de códigos ANSI para colores y estilos en la terminal
 # Estos códigos son interpretados por la terminal para cambiar el formato del texto.
 # ==============================================================================
 RESET = "\033[0m"       # Código para restablecer el color y estilo a los valores por defecto
-BOLD = "\033[1m"        # Código para texto en negrita
-GREEN = "\033[92m"      # Código para color verde brillante
-YELLOW = "\033[93m"     # Código para color amarillo brillante
-BLUE = "\033[94m"       # Código para color azul brillante
-RED = "\033[91m"        # Código para color rojo brillante
-ORANGE = "\033[33m"     # Código para color naranja (estándar)
+BOLD = "\033[1m"         # Código para texto en negrita
+GREEN = "\033[92m"       # Código para color verde brillante
+YELLOW = "\033[93m"      # Código para color amarillo brillante
+BLUE = "\033[94m"        # Código para color azul brillante
+RED = "\033[91m"         # Código para color rojo brillante
+ORANGE = "\033[33m"      # Código para color naranja (estándar)
 LIGHT_GRAY = "\033[37m" # Gris claro (para texto secundario)
-CYAN = "\033[96m"       # Cian para un nuevo grupo de categorías
-MAGENTA = "\033[95m"    # Magenta para otro nuevo grupo de categorías
+CYAN = "\033[96m"        # Cian para un nuevo grupo de categorías
+MAGENTA = "\033[95m"     # Magenta para otro nuevo grupo de categorías
 # La barra de progreso es VERDE como solicitado.
 
 # ==============================================================================
@@ -96,9 +99,9 @@ daily_activity_log = [] # Lista para almacenar segmentos de actividad: [{'catego
 current_daily_activity = None # La categoría de actividad diaria que Pydoro está rastreando actualmente
 last_activity_start_time = None # Marca de tiempo (datetime object) de cuándo comenzó la actividad diaria actual
 
-# Nuevas categorías diarias y su orden
+# Nuevas categorías diarias y su orden (¡'Ejercicio' añadido aquí!)
 DEFAULT_DAILY_CATEGORIES = [
-    'Estudio', 'Desayuno', 'Trabajo', 'Almuerzo', 'Siesta', 'Ducha', 'Lectura', 'Cena', 'Otros'
+    'Estudio', 'Desayuno', 'Trabajo', 'Almuerzo', 'Siesta', 'Ejercicio', 'Ducha', 'Lectura', 'Cena', 'Otros'
 ]
 
 # Mapeo de categorías principales a sus subcategorías específicas y colores para la vista de resumen
@@ -109,13 +112,14 @@ SPECIFIC_SUBCATEGORY_MAPPING = {
 }
 
 # Mapeo de colores para las categorías diarias generales (para la línea de tiempo)
-# Puedes ajustar estos colores según tu preferencia
+# ¡Color para 'Ejercicio' añadido aquí!
 DAILY_CATEGORY_COLORS = {
     'Estudio': GREEN,
     'Desayuno': ORANGE,
     'Trabajo': BLUE,
     'Almuerzo': ORANGE,
     'Siesta': YELLOW,
+    'Ejercicio': YELLOW, # Usamos YELLOW para Ejercicio
     'Ducha': CYAN,
     'Lectura': MAGENTA,
     'Cena': ORANGE,
@@ -128,6 +132,19 @@ DAILY_CATEGORY_COLORS = {
 def clear_screen():
     """Limpia la pantalla de la consola."""
     os.system('cls' if os.name == 'nt' else 'clear')
+
+def format_time_hh_mm_minutes(total_minutes):
+    """
+    Formatea el tiempo total en minutos a un formato de Horas y Minutos (Hh Mm).
+    """
+    if total_minutes < 0:
+        total_minutes = 0
+    hours = total_minutes // 60
+    remaining_minutes = total_minutes % 60
+    if hours > 0:
+        return f"{hours}h {remaining_minutes}m"
+    else:
+        return f"{remaining_minutes}m"
 
 def display_timer(total_seconds):
     """
@@ -144,7 +161,7 @@ def display_timer(total_seconds):
     elif total_seconds > 0:
         color = GREEN
     else:
-        color = GREEN
+        color = GREEN # For 0 seconds or completed timer
 
     return f"{BOLD}{color}{minutes:02d}:{seconds:02d}{RESET}"
 
@@ -155,23 +172,35 @@ def create_progress_bar(current_seconds, total_duration_seconds, bar_length=40):
     if total_duration_seconds == 0:
         percentage_completed = 100
     else:
-        percentage_completed = ((total_duration_seconds - current_seconds) / total_duration_seconds) * 100
+        # Calculate percentage based on time ELAPSED, not remaining, for the bar
+        elapsed_seconds = total_duration_seconds - current_seconds
+        percentage_completed = (elapsed_seconds / total_duration_seconds) * 100
 
     filled_chars = int(bar_length * percentage_completed / 100)
     
     colored_bar = f"{GREEN}█{RESET}" * filled_chars + f"{LIGHT_GRAY}-{RESET}" * (bar_length - filled_chars)
     
     percent_color = GREEN
-    if percentage_completed < 25: 
+    if percentage_completed < 25: # Less than 25% completed (more than 75% remaining)
         percent_color = RED
-    elif percentage_completed < 50:
+    elif percentage_completed < 50: # Less than 50% completed (more than 50% remaining)
         percent_color = YELLOW
 
     return f"[{colored_bar}] {percent_color}{percentage_completed:.0f}%{RESET}"
 
+def get_total_script_run_time():
+    """
+    Calcula el tiempo total transcurrido desde que se inició el script.
+    Returns:
+        str: Tiempo formateado en Hh Mm.
+    """
+    elapsed = datetime.datetime.now() - script_start_time
+    total_seconds = int(elapsed.total_seconds())
+    total_minutes = total_seconds // 60
+    return format_time_hh_mm_minutes(total_minutes)
+
 # ==============================================================================
 # Funciones auxiliares para la lectura de teclado no bloqueante
-# (Mantengo la estructura por si se necesita más adelante, pero no se usa en main())
 # ==============================================================================
 def kbhit_os_specific():
     """
@@ -187,12 +216,12 @@ def kbhit_os_specific():
 
 def getch_os_specific():
     """
-    Reads a single character from stdin without echoing it to the console.
-    Works for both Windows and Unix-like systems.
+    Lee un solo carácter desde stdin sin mostrarlo en la consola.
+    Funciona para Windows y sistemas Unix/Linux.
     """
-    if os.name == 'nt': # For Windows
+    if os.name == 'nt': # Para Windows
         return msvcrt.getch().decode('utf-8')
-    else: # For Linux/macOS
+    else: # Para Linux/macOS
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
@@ -247,11 +276,10 @@ def assign_time_to_specific_category(duration_minutes, specific_category):
         specific_category (str): Nombre de la subcategoría (ej. "Programación", "Inclub").
     """
     global total_specific_category_times
-    # The variable total_specific_category_times stores minutes, so just add directly
     if specific_category in total_specific_category_times:
         total_specific_category_times[specific_category] += duration_minutes
     else:
-        total_specific_category_times[specific_category] = duration_minutes
+        total_specific_category_times[specific_category] = duration_minutes # Should not happen if pre-defined
 
 def display_specific_category_times():
     """
@@ -259,10 +287,9 @@ def display_specific_category_times():
     Organiza por categoría principal y aplica colores.
     """
     clear_screen()
-    print(f"{BOLD}{BLUE}--- Tiempo Productivo Categorizado (Sesión Actual) ---{RESET}") # Renamed option
+    print(f"{BOLD}{BLUE}--- Tiempo Productivo Categorizado (Sesión Actual) ---{RESET}")
     has_data = False
 
-    # Iterate through the main categories that have specific subcategories
     for main_cat, info in SPECIFIC_SUBCATEGORY_MAPPING.items():
         subcategories = info['subcats']
         color = info['color']
@@ -270,26 +297,28 @@ def display_specific_category_times():
         category_has_data = False
         category_total_minutes = 0
         
-        # Collect data for this main category's subcategories
         subcat_display_lines = []
         for subcat in subcategories:
             minutes = total_specific_category_times.get(subcat, 0)
             if minutes > 0:
-                subcat_display_lines.append(f"  {color}- {subcat}: {format_time_hh_mm_minutes(minutes)}{RESET}") # Use format for minutes
+                subcat_display_lines.append(f"  {color}- {subcat}: {format_time_hh_mm_minutes(minutes)}{RESET}")
                 category_total_minutes += minutes
                 category_has_data = True
-                has_data = True # Overall data flag
+                has_data = True
 
         if category_has_data:
             print(f"\n{BOLD}{color}{main_cat}:{RESET}")
             for line in subcat_display_lines:
                 print(line)
-            print(f"  {color}Total {main_cat}: {BOLD}{format_time_hh_mm_minutes(category_total_minutes)}{RESET}") # Use format for minutes
+            print(f"  {color}Total {main_cat}: {BOLD}{format_time_hh_mm_minutes(category_total_minutes)}{RESET}")
 
     if not has_data:
         print(f"{LIGHT_GRAY}Aún no hay tiempo registrado en categorías específicas en esta sesión.{RESET}")
     
-    print(f"{LIGHT_GRAY}(Estos totales se reinician al cerrar el programa){RESET}")
+    # Nuevo: Muestra el tiempo total transcurrido del script
+    print(f"\n{BOLD}{CYAN}Total de Tiempo Registrado: {get_total_script_run_time()}{RESET}")
+
+    print(f"{LIGHT_GRAY}(Estos totales de categorías se reinician al cerrar el programa){RESET}")
     input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
 
 
@@ -298,84 +327,126 @@ def display_specific_category_times():
 # ==============================================================================
 def countdown_period(duration_seconds, phase_name, quote,
                      pomodoros_completed_session, short_breaks_completed_session, long_breaks_completed_session,
-                     daily_activity_name=None): # Added daily_activity_name
+                     daily_activity_name=None):
     """
     Realiza una cuenta regresiva para un período dado, mostrando el tiempo restante,
     una barra de progreso, contadores de sesión acumulados y una frase motivadora.
     Permite pausar/reanudar presionando Enter.
+    Permite terminar un Pomodoro de TRABAJO anticipadamente presionando 'Q'.
     Al finalizar, reproduce un sonido.
 
     Returns:
-        bool: True si el período se completó naturalmente, False si fue interrumpido.
+        tuple: (actual_seconds_elapsed_in_phase, status)
+            actual_seconds_elapsed_in_phase (int): Segundos reales que pasaron en esta fase.
+            status (str):
+                'completed': El temporizador llegó a 0.
+                'early_end_registered': Usuario presionó 'Q' y optó por registrar el tiempo.
+                'early_end_not_registered': Usuario presionó 'Q' y optó por NO registrar el tiempo.
+                'user_cancelled_all': Usuario presionó Ctrl+C y eligió cancelar todos los ciclos.
+                'user_skip_phase': Usuario presionó Ctrl+C y eligió saltar solo esta fase.
     """
     phase_color = BLUE if "TRABAJO" in phase_name else ORANGE if "DESCANSO" in phase_name else RESET
     
     total_duration_seconds_initial = duration_seconds
     current_seconds = duration_seconds
+    start_time_phase = datetime.datetime.now() # Marca de tiempo cuando la fase actual comienza
     
     is_paused = False
 
-    # Adjust phase name for display
     display_phase_name = phase_name
     if daily_activity_name:
         display_phase_name = f"{phase_name} ({daily_activity_name})"
 
-    while current_seconds >= 0:
-        clear_screen()
-        print(f"{BOLD}{phase_color}--- FASE DE {display_phase_name} ---{RESET}")
-        
-        print(f"{BOLD}Sesión: {GREEN}Pomodoros: {pomodoros_completed_session}{RESET} | {ORANGE}Descansos: {short_breaks_completed_session}{RESET} | {BLUE}Descansos largos: {long_breaks_completed_session}{RESET}") 
-        print("-" * 60)
-
-        print(f"\n{LIGHT_GRAY}\"{quote}\"{RESET}\n")
-
-        print(f"{create_progress_bar(current_seconds, total_duration_seconds_initial)} Tiempo restante: {display_timer(current_seconds)}")
-        
-        if is_paused:
-            print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
-        else:
-            print(f"\n{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}") 
-
-        for _ in range(10): # Reduce sleep time and loop more for responsiveness
-            if kbhit_os_specific():
-                key = getch_os_specific()
-                if key in ('\r', '\n'):
-                    is_paused = not is_paused 
-                    # Clear any buffered keys
-                    while kbhit_os_specific():
-                        getch_os_specific()
-                    break 
-                else:
-                    pass
-            time.sleep(0.1) # Sleep for a short interval
-
-        if not is_paused:
-            current_seconds -= 1
-
-    clear_screen()
-    print(f"{BOLD}{phase_color}--- FASE DE {display_phase_name} TERMINADA ---{RESET}")
-    print(f"¡{BOLD}{phase_color}{display_phase_name}{RESET} completado! Es hora de cambiar de fase.\n")
-
-    try:
-        if "TRABAJO" in phase_name:
-            sound_file = 'bell.wav'
-        else:
-            sound_file = 'notif.wav'
+    try: # Bloque principal para capturar KeyboardInterrupt (Ctrl+C)
+        while current_seconds >= 0:
+            clear_screen()
+            print(f"{BOLD}{phase_color}--- FASE DE {display_phase_name} ---{RESET}")
             
-        playsound(sound_file) 
-    except Exception as e:
-        print(f"{RED}ADVERTENCIA: No se pudo reproducir el sonido de notificación '{sound_file}': {e}{RESET}")
-        print(f"{RED}Asegúrate de que '{sound_file}' exista en la misma carpeta y playsound esté instalado correctamente.{RESET}")
+            print(f"{BOLD}Sesión: {GREEN}Pomodoros: {pomodoros_completed_session}{RESET} | {ORANGE}Descansos: {short_breaks_completed_session}{RESET} | {BLUE}Descansos largos: {long_breaks_completed_session}{RESET}") 
+            print("-" * 60)
 
-    time.sleep(3)
-    return True
+            print(f"\n{LIGHT_GRAY}\"{quote}\"{RESET}\n")
+
+            print(f"{create_progress_bar(current_seconds, total_duration_seconds_initial)} Tiempo restante: {display_timer(current_seconds)}")
+            
+            # Instrucción de acción para el usuario
+            action_prompt = ""
+            if "TRABAJO" in phase_name:
+                action_prompt = f"{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar. Presiona [Q] para terminar este {phase_name} anticipadamente.{RESET}"
+            else:
+                action_prompt = f"{BOLD}{LIGHT_GRAY}Presiona [ENTER] para pausar...{RESET}"
+            print(action_prompt)
+
+            # Bucle para verificar la entrada del teclado de forma no bloqueante
+            for _ in range(10): # Reduce el tiempo de sleep y bucle más para mayor capacidad de respuesta (10 * 0.1s = 1s)
+                if kbhit_os_specific():
+                    key = getch_os_specific().lower() # Lee la tecla y la convierte a minúscula
+                    if key in ('\r', '\n'): # Tecla Enter para pausar/reanudar
+                        is_paused = not is_paused 
+                        # Limpia cualquier tecla en el búfer para evitar múltiples activaciones
+                        while kbhit_os_specific():
+                            getch_os_specific()
+                        break 
+                    elif key == 'q' and "TRABAJO" in phase_name: # Tecla 'Q' para terminar anticipadamente (solo en TRABAJO)
+                        elapsed_seconds_during_phase = int((datetime.datetime.now() - start_time_phase).total_seconds())
+                        clear_screen()
+                        print(f"\n{BOLD}{YELLOW}¡{phase_name} terminado con anticipación!{RESET}")
+                        
+                        if elapsed_seconds_during_phase > 0: # Solo pregunta si hay tiempo transcurrido
+                            print(f"{BOLD}{LIGHT_GRAY}Tiempo transcurrido en esta fase: {format_time_hh_mm_minutes(elapsed_seconds_during_phase // 60)}{RESET}")
+                            confirm_early_end = input(f"\n{BOLD}¿Quieres registrar estos {format_time_hh_mm_minutes(elapsed_seconds_during_phase // 60)} como tiempo productivo? {GREEN}[S]{RESET}/{RED}[N]{RESET}: ").lower().strip()
+                            if confirm_early_end == 's':
+                                return (elapsed_seconds_during_phase, 'early_end_registered')
+                            else:
+                                print(f"{LIGHT_GRAY}Tiempo no registrado. Continuando con los ciclos.{RESET}")
+                                time.sleep(1) # Pequeña pausa antes de continuar
+                                return (elapsed_seconds_during_phase, 'early_end_not_registered')
+                        else: # Si no pasó tiempo, no hay nada que registrar
+                            print(f"{LIGHT_GRAY}No se registró tiempo. Continuando con los ciclos.{RESET}")
+                            time.sleep(1)
+                            return (0, 'early_end_not_registered')
+
+                time.sleep(0.1) # Pausa breve para no consumir CPU
+
+            if not is_paused:
+                current_seconds -= 1
+
+        # Si el bucle termina, el período se completó naturalmente
+        elapsed_seconds_during_phase = total_duration_seconds_initial # Se completó la duración total
+        clear_screen()
+        print(f"{BOLD}{phase_color}--- FASE DE {display_phase_name} TERMINADA ---{RESET}")
+        print(f"¡{BOLD}{phase_color}{display_phase_name}{RESET} completado! Es hora de cambiar de fase.\n")
+
+        # Reproducir sonido
+        try:
+            sound_file = 'bell.wav' if "TRABAJO" in phase_name else 'notif.wav'
+            playsound(sound_file) 
+        except Exception as e:
+            print(f"{RED}ADVERTENCIA: No se pudo reproducir el sonido de notificación '{sound_file}': {e}{RESET}")
+            print(f"{RED}Asegúrate de que '{sound_file}' exista en la misma carpeta y playsound esté instalado correctamente.{RESET}")
+
+        time.sleep(3) # Pausa para que el usuario lea el mensaje
+        return (elapsed_seconds_during_phase, 'completed')
+
+    except KeyboardInterrupt: # Captura Ctrl+C
+        clear_screen()
+        choice = input(f"{RED}{BOLD}¡{phase_name} interrumpido por el usuario!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower().strip()
+        elapsed_seconds_during_phase = int((datetime.datetime.now() - start_time_phase).total_seconds()) # Calcular tiempo transcurrido hasta la interrupción
+        if choice == 'c':
+            print(f"{BOLD}{RED}¡Ciclos cancelados! Vuelve cuando estés listo. 👋{RESET}")
+            time.sleep(1)
+            return (elapsed_seconds_during_phase, 'user_cancelled_all')
+        else:
+            print(f"{BOLD}{GREEN}Saltando al siguiente período...{RESET}")
+            time.sleep(1)
+            return (elapsed_seconds_during_phase, 'user_skip_phase')
 
 # ==============================================================================
 # Función principal para ejecutar los ciclos Pomodoro
 # ==============================================================================
-def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25, num_cycles=4,
+def run_pomodoro(work_minutes=90, short_break_minutes=15, long_break_minutes=45, num_cycles=4, # ¡Nuevos valores predeterminados!
                  pomodoros_completed_session_total=0, short_breaks_completed_session_total=0, long_breaks_completed_session_total=0,
-                 daily_activity_name=None): # Added daily_activity_name parameter
+                 daily_activity_name=None):
     """
     Ejecuta un conjunto de ciclos Pomodoro con la configuración dada.
     Permite al usuario controlar el inicio de cada fase.
@@ -397,69 +468,92 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
     input(f"{BOLD}{GREEN}Presiona Enter para iniciar el primer período de TRABAJO...{RESET}")
 
     for i in range(1, num_cycles + 1):
+        clear_screen() # Limpia la pantalla al inicio de cada iteración del ciclo
         print(f"\n{BOLD}--- CICLO {i}/{num_cycles} ---{RESET}")
         
         # --- Fase de TRABAJO ---
         work_quote = random.choice(WORK_QUOTES)
-        try:
-            completed_naturally = countdown_period(work_seconds, "TRABAJO", work_quote,
-                                                     pomodoros_completed_session_total + current_set_pomodoros, 
-                                                     short_breaks_completed_session_total + current_set_short_breaks, 
-                                                     long_breaks_completed_session_total + current_set_long_breaks,
-                                                     daily_activity_name=daily_activity_name) # Pass daily activity
-            if completed_naturally:
-                current_set_pomodoros += 1
-                # --- Lógica de asignación de subcategoría específica ---
-                if daily_activity_name in SPECIFIC_SUBCATEGORY_MAPPING: # Use daily_activity_name to check mapping
+        
+        elapsed_seconds_work, work_outcome = countdown_period(work_seconds, "TRABAJO", work_quote,
+                                                              pomodoros_completed_session_total + current_set_pomodoros, 
+                                                              short_breaks_completed_session_total + current_set_short_breaks, 
+                                                              long_breaks_completed_session_total + current_set_long_breaks,
+                                                              daily_activity_name=daily_activity_name)
+        
+        # Procesar el resultado de la fase de trabajo
+        if work_outcome == 'completed':
+            current_set_pomodoros += 1
+            # Lógica de asignación de subcategoría específica (para pomodoros COMPLETADOS naturalmente)
+            if daily_activity_name and daily_activity_name in SPECIFIC_SUBCATEGORY_MAPPING:
+                specific_category_assigned = prompt_specific_work_category(daily_activity_name)
+                if specific_category_assigned:
+                    assign_time_to_specific_category(work_minutes, specific_category_assigned) # Asigna minutos completos
+                    print(f"Tiempo de {work_minutes} minutos asignado a {specific_category_assigned}.")
+                else:
+                    print(f"Tiempo no asignado a una subcategoría específica de {daily_activity_name}.")
+            elif daily_activity_name:
+                 print(f"Tiempo de {work_minutes} minutos registrado como {daily_activity_name}.")
+            time.sleep(1) # Pausa breve para que el usuario vea el mensaje
+        
+        elif work_outcome == 'early_end_registered':
+            elapsed_minutes_work = elapsed_seconds_work // 60
+            if elapsed_minutes_work > 0: # Solo si hubo tiempo significativo transcurrido para registrar
+                if daily_activity_name and daily_activity_name in SPECIFIC_SUBCATEGORY_MAPPING:
                     specific_category_assigned = prompt_specific_work_category(daily_activity_name)
                     if specific_category_assigned:
-                        assign_time_to_specific_category(work_minutes, specific_category_assigned) # Pass minutes directly
-                        print(f"Tiempo de {work_minutes} minutos asignado a {specific_category_assigned}.")
+                        assign_time_to_specific_category(elapsed_minutes_work, specific_category_assigned)
+                        print(f"Tiempo de {elapsed_minutes_work} minutos asignado a {specific_category_assigned} (finalizado anticipadamente).")
                     else:
-                        print(f"Tiempo no asignado a una subcategoría específica de {daily_activity_name}.")
-                else:
-                    print("La categoría diaria actual no tiene subcategorías específicas para asignar tiempo.")
+                        print(f"Tiempo de {elapsed_minutes_work} minutos registrado como {daily_activity_name} (finalizado anticipadamente).")
+                elif daily_activity_name:
+                    print(f"Tiempo de {elapsed_minutes_work} minutos registrado como {daily_activity_name} (finalizado anticipadamente).")
+            else: # No se registra tiempo si no transcurrió un minuto completo
+                print(f"{LIGHT_GRAY}Menos de un minuto transcurrido. Tiempo no registrado.{RESET}")
+            # No se incrementa current_set_pomodoros si se finaliza anticipadamente, solo se registra el tiempo.
+            time.sleep(1) 
+        
+        elif work_outcome == 'early_end_not_registered':
+            # El usuario eligió no registrar el tiempo, simplemente se procede al descanso o al siguiente ciclo
+            time.sleep(1) 
 
-            else:
-                pass
-        except KeyboardInterrupt:
-            clear_screen()
-            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el TRABAJO!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower().strip()
-            if choice == 'c':
-                print(f"{BOLD}{RED}¡Pomodoro cancelado! Vuelve cuando estés listo. 👋{RESET}")
-                return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks 
-            else:
-                print(f"{BOLD}{GREEN}Saltando al descanso...{RESET}")
-                
+        elif work_outcome == 'user_cancelled_all':
+            # Si el usuario eligió cancelar todos los ciclos, salimos de la función principal
+            return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks 
+
+        elif work_outcome == 'user_skip_phase':
+            # Si el usuario eligió saltar la fase actual, vamos a la siguiente iteración del bucle.
+            # Esto significa que el descanso asociado a este ciclo también se salta.
+            if i < num_cycles:
+                input(f"{BOLD}{GREEN}Presiona Enter para iniciar el próximo período de TRABAJO...{RESET}")
+            continue # Salta al siguiente ciclo (próxima iteración del bucle for)
+
         # --- Fase de DESCANSO (corto o largo) ---
-        is_long_break = (i % num_cycles == 0)
+        # Esta lógica solo se ejecuta si la fase de trabajo no fue cancelada completamente o saltada.
+        is_long_break = (i % num_cycles == 0) # El descanso largo es cada 'num_cycles' pomodoros
         break_message = "DESCANSO LARGO" if is_long_break else "DESCANSO CORTO"
         break_duration = long_break_seconds if is_long_break else short_break_seconds
         break_quote = random.choice(BREAK_QUOTES)
 
         input(f"{BOLD}{ORANGE}Presiona Enter para iniciar el {break_message}...{RESET}")
         
-        try:
-            completed_naturally = countdown_period(break_duration, break_message, break_quote,
-                                                     pomodoros_completed_session_total + current_set_pomodoros, 
-                                                     short_breaks_completed_session_total + current_set_short_breaks, 
-                                                     long_breaks_completed_session_total + current_set_long_breaks,
-                                                     daily_activity_name=daily_activity_name) # Pass daily category
-            if completed_naturally:
-                if is_long_break:
-                    current_set_long_breaks += 1
-                else:
-                    current_set_short_breaks += 1
+        elapsed_seconds_break, break_outcome = countdown_period(break_duration, break_message, break_quote,
+                                                                pomodoros_completed_session_total + current_set_pomodoros, 
+                                                                short_breaks_completed_session_total + current_set_short_breaks, 
+                                                                long_breaks_completed_session_total + current_set_long_breaks,
+                                                                daily_activity_name=daily_activity_name)
+        
+        # Procesar el resultado de la fase de descanso
+        if break_outcome == 'completed':
+            if is_long_break:
+                current_set_long_breaks += 1
             else:
-                pass
-        except KeyboardInterrupt:
-            clear_screen()
-            choice = input(f"{RED}{BOLD}¡Pomodoro interrumpido durante el {break_message}!{RESET}\n{BOLD}¿Qué quieres hacer? {YELLOW}[S]{RESET}altar a siguiente fase / {RED}[C]{RESET}ancelar todos los ciclos: ").lower().strip()
-            if choice == 'c':
-                print(f"{BOLD}{RED}¡Pomodoro cancelado! Vuelve cuando estés listo. 👋{RESET}")
-                return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks 
-            else:
-                print(f"{BOLD}{GREEN}Saltando al próximo período de trabajo...{RESET}")
+                current_set_short_breaks += 1
+        
+        elif break_outcome == 'user_cancelled_all':
+            return current_set_pomodoros, current_set_short_breaks, current_set_long_breaks # Salir de la función
+
+        elif break_outcome == 'user_skip_phase':
+            pass # Continúa al siguiente ciclo como si el descanso hubiera terminado (no se añade al contador de descansos)
 
         if i < num_cycles:
             input(f"{BOLD}{GREEN}Presiona Enter para iniciar el próximo período de TRABAJO...{RESET}")
@@ -472,14 +566,13 @@ def run_pomodoro(work_minutes=60, short_break_minutes=10, long_break_minutes=25,
 # Función para el temporizador simple (cuenta hacia arriba)
 # ==============================================================================
 def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_long_breaks_session,
-                     daily_activity_name=None): # Added daily_activity_name parameter
+                     daily_activity_name=None):
     """
     Ejecuta un temporizador simple que cuenta hacia arriba desde 0.
     Es cancelable con Ctrl+C.
-    Retorna el tiempo total en minutos transcurrido.
+    Retorna el tiempo total en minutos transcurrido para poder sumarlo.
     """
     clear_screen()
-    # Adjust title for display
     display_title = "TEMPORIZADOR SIMPLE"
     if daily_activity_name:
         display_title = f"TEMPORIZADOR SIMPLE ({daily_activity_name})"
@@ -501,6 +594,9 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
             
             print(f"\n{BOLD}Tiempo transcurrido: {display_str}{RESET}")
             
+            # Nuevo: Muestra el tiempo total transcurrido del script
+            print(f"{BOLD}{CYAN}Total de Tiempo Registrado (Script): {get_total_script_run_time()}{RESET}")
+
             if is_paused:
                 print(f"\n{BOLD}{YELLOW}PAUSADO. Presiona [ENTER] para reanudar...{RESET}")
             else:
@@ -519,18 +615,21 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
                         pass 
                 time.sleep(0.1) # Sleep for a short interval
 
+
             if not is_paused:
                 current_elapsed_seconds += 1
 
     except KeyboardInterrupt:
         clear_screen()
+        # Modificación para que el temporizador simple también ofrezca asignar tiempo
         elapsed_minutes = int(current_elapsed_seconds / 60) # Calculate minutes here
         
         print(f"{RED}{BOLD}¡Temporizador Simple interrumpido!{RESET}")
         choice = input(f"{BOLD}Tiempo transcurrido: {display_timer(current_elapsed_seconds)}. ¿Qué quieres hacer? {YELLOW}[S]{RESET}umar tiempo y volver al menú principal / {RED}[C]{RESET}ancelar y no sumar tiempo: ").lower().strip()
         if choice == 'c':
             print(f"{BOLD}{RED}Temporizador cancelado. Tiempo no sumado. 👋{RESET}")
-            return 0
+            time.sleep(1)
+            return 0 # Retorna 0 minutos si se cancela
         else:
             print(f"{BOLD}{GREEN}Sumando tiempo al total de trabajo...{RESET}")
             if daily_activity_name in SPECIFIC_SUBCATEGORY_MAPPING: # Use daily_activity_name to check mapping
@@ -540,28 +639,38 @@ def run_simple_timer(total_pomodoros_session, total_short_breaks_session, total_
                     print(f"Tiempo de {elapsed_minutes} minutos asignado a {specific_category_assigned}.")
                 else:
                     print(f"Tiempo no asignado a una subcategoría específica de {daily_activity_name}.")
-            else:
+            elif daily_activity_name: # Si es una categoría general pero no tiene subcategorías específicas
+                print(f"Tiempo de {elapsed_minutes} minutos registrado como {daily_activity_name}.")
+            else: # Si no hay actividad diaria asignada, solo informa
                 print("La categoría diaria actual no tiene subcategorías específicas para asignar tiempo.")
 
-            return elapsed_minutes
+            time.sleep(1)
+            return elapsed_minutes # Retorna el tiempo transcurrido para que se sume en main()
     
     # If timer completes naturally (not interrupted by Ctrl+C)
+    # This part will rarely be reached unless current_elapsed_seconds is capped and reaches max.
+    # Given its nature as an "upward" timer, it's typically interrupted by Ctrl+C.
+    # However, if it were to complete (e.g., if it had a target duration), the logic below would apply.
     elapsed_minutes = int(current_elapsed_seconds / 60) # Calculate minutes here
+    print(f"{BOLD}{BLUE}Temporizador Simple finalizado automáticamente. Tiempo transcurrido: {display_timer(current_elapsed_seconds)}{RESET}")
     if daily_activity_name in SPECIFIC_SUBCATEGORY_MAPPING: # Use daily_activity_name to check mapping
         specific_category_assigned = prompt_specific_work_category(daily_activity_name)
         if specific_category_assigned:
             assign_time_to_specific_category(elapsed_minutes, specific_category_assigned) # Pass minutes directly
             print(f"Tiempo de {elapsed_minutes} minutos asignado a {specific_category_assigned}.")
         else:
-            print("Tiempo no asignado a una subcategoría específica de {daily_activity_name}.")
+            print(f"Tiempo no asignado a una subcategoría específica de {daily_activity_name}.")
+    elif daily_activity_name:
+        print(f"Tiempo de {elapsed_minutes} minutos registrado como {daily_activity_name}.")
     else:
         print("La categoría diaria actual no tiene subcategorías específicas para asignar tiempo.")
     
+    time.sleep(1)
     return elapsed_minutes
 
 
 # ==============================================================================
-# Funciones auxiliares para formatear tiempos
+# Funciones auxiliares para formatear tiempos (Mantengo las funciones auxiliares aquí)
 # ==============================================================================
 def format_time_hh_mm_seconds(total_seconds): 
     """
@@ -570,15 +679,6 @@ def format_time_hh_mm_seconds(total_seconds):
     hours = int(total_seconds // 3600)
     minutes = int((total_seconds % 3600) // 60)
     return f"{hours:02d}:{minutes:02d}"
-
-def format_time_hh_mm_minutes(total_minutes):
-    """
-    Convierte el total de minutos a formato HH:MM (solo horas y minutos).
-    """
-    hours = total_minutes // 60
-    minutes = total_minutes % 60
-    return f"{hours:02d}:{minutes:02d}"
-
 
 def format_time_hh_mm_ss(total_seconds):
     """
@@ -649,11 +749,11 @@ def prompt_activity_category_choice(categories_list, is_initial_setup=False):
             
         print(f"{BOLD}{YELLOW}Opciones de Actividad:{RESET}")
         for i, cat in enumerate(categories_list):
-            print(f"  {BOLD}{i+1}. {CYAN}{cat}{RESET}")
+            print(f"  {BOLD}{i+1}. {CYAN}{cat}{RESET}")
         
         # Option 0 is only for returning to menu if tracking is already active and it's not initial setup
         if not is_initial_setup and current_daily_activity is not None:
-            print(f"\n  {BOLD}{0}. {RED}Cancelar / Volver al Menú (Mantener '{current_daily_activity}') {RESET}")
+            print(f"\n  {BOLD}{0}. {RED}Cancelar / Volver al Menú (Mantener '{current_daily_activity}') {RESET}")
 
         try:
             choice_str = input(f"\n{BOLD}Elige una opción ({'0-' if not is_initial_setup and current_daily_activity is not None else ''}1-{len(categories_list)}): {RESET}").strip()
@@ -735,6 +835,8 @@ def show_daily_activity_summary(daily_activity_data_log, current_active_category
     if not has_accumulated_data:
         print(f"  {LIGHT_GRAY}Aún no hay tiempo registrado en categorías generales en esta sesión.{RESET}")
 
+    # Nuevo: Muestra el tiempo total transcurrido del script en el resumen de actividades
+    print(f"\n{BOLD}{CYAN}Total de Tiempo Registrado (Script): {get_total_script_run_time()}{RESET}")
 
     if not final_summary:
         input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
@@ -783,7 +885,6 @@ def main():
     print(f"{BOLD}{GREEN}Actividad inicial establecida: {current_daily_activity}{RESET}")
     time.sleep(1)
 
-
     while True:
         try:
             # Calculate and display current segment's elapsed time *for display only*
@@ -824,6 +925,10 @@ def main():
             if not has_current_accumulated_data:
                 print(f"  {LIGHT_GRAY}Aún no hay tiempo registrado en categorías generales.{RESET}")
             print(f"{BOLD}----------------------------------{RESET}\n")
+
+            # Nuevo: Muestra el tiempo total transcurrido del script en el menú principal
+            print(f"{BOLD}{CYAN}Total de Tiempo Registrado (Script): {get_total_script_run_time()}{RESET}")
+            print("\n") # Espacio para separar
 
 
             print(f"{BOLD}Selecciona una opción:{RESET}")
@@ -868,11 +973,11 @@ def main():
             valid_choices = [str(i) for i in range(1, option_counter + 1)] # All available options
 
             # Revert to standard blocking input for stability
-            choice = input(f"{BOLD}Tu elección (1-{option_counter}): {RESET}").strip()
+            choice = input(f"{BOLD}Tu elección (1-{option_counter -1}): {RESET}").strip() # Corrected range in prompt
             
             # Input validation loop
             while choice not in valid_choices:
-                print(f"{RED}Opción no válida. Por favor, ingresa un número entre 1 y {option_counter}.{RESET}")
+                print(f"{RED}Opción no válida. Por favor, ingresa un número entre 1 y {option_counter - 1}.{RESET}") # Corrected range in error
                 time.sleep(1) # Give user time to read error message
                 clear_screen() # Redraw menu
                 
@@ -909,17 +1014,24 @@ def main():
                     print(f"  {LIGHT_GRAY}Aún no hay tiempo registrado en categorías generales.{RESET}")
                 print(f"{BOLD}----------------------------------{RESET}\n")
 
+                # Re-display total script run time
+                print(f"{BOLD}{CYAN}Total de Tiempo Registrado (Script): {get_total_script_run_time()}{RESET}")
+                print("\n") # Espacio para separar
+
+
                 print(f"{BOLD}Selecciona una opción:{RESET}")
                 for option_text in menu_options:
                     print(option_text)
-                choice = input(f"{BOLD}Tu elección (1-{option_counter}): {RESET}").strip()
+                choice = input(f"{BOLD}Tu elección (1-{option_counter - 1}): {RESET}").strip() # Corrected range in prompt
             
             # --- Manejo de acciones basadas en la elección del usuario ---
             
             if allow_pomodoro_timer and choice == option_pomodoro:
                 # No llamar a change_current_daily_activity aquí.
                 # El Pomodoro es parte del segmento de la actividad diaria actual.
-                work, short_break, long_break, cycles = 60, 10, 25, 4 # Valores por defecto
+                # Los valores por defecto ahora vienen de la definición de run_pomodoro
+                
+                work, short_break, long_break, cycles = 90, 15, 45, 4 # Default values (aligned with run_pomodoro defaults)
 
                 while True:
                     customize_choice = input(f"{BOLD}¿Quieres personalizar la configuración para este conjunto de ciclos? ({GREEN}s{RESET}/{RED}n{RESET}): {RESET}").lower().strip()
@@ -955,8 +1067,10 @@ def main():
                 total_pomodoros_session += completed_pom
                 total_short_breaks_session += completed_short_break
                 total_long_breaks_session += completed_long_break
-                total_work_minutes_session += completed_pom * work
-                total_break_minutes_session += (completed_short_break * short_break) + (completed_long_break * long_break)
+                # total_work_minutes_session and total_break_minutes_session are now updated
+                # directly by assign_time_to_specific_category if specific,
+                # or not tracked at this higher level if the user chose not to sum to specific.
+                # The Pomodoros completed counter is the main high-level metric here.
 
                 clear_screen()
                 print(f"{BOLD}{BLUE}¡Conjunto de ciclos Pomodoro completado!{RESET}")
@@ -975,11 +1089,18 @@ def main():
                     total_pomodoros_session, total_short_breaks_session, total_long_breaks_session,
                     daily_activity_name=current_daily_activity # Pass daily category to simple timer for display
                 )
-                total_work_minutes_session += elapsed_minutes_simple # Sumamos el tiempo reportado por el simple timer
+                # total_work_minutes_session += elapsed_minutes_simple # Sumamos el tiempo reportado por el simple timer
+                # This sum is now handled within run_simple_timer's logic for assignment
+                # if the user chooses to register time.
+
                 clear_screen()
                 print(f"{BOLD}{BLUE}¡Temporizador Simple finalizado!{RESET}")
-                # Now correctly displaying the added time
-                print(f"{BOLD}Tiempo añadido al trabajo: {GREEN}{format_time_hh_mm_minutes(elapsed_minutes_simple)}{RESET}") # Now passing minutes directly
+                # Now correctly displaying the added time if any was assigned by run_simple_timer
+                if elapsed_minutes_simple > 0:
+                    print(f"{BOLD}Tiempo añadido al trabajo: {GREEN}{format_time_hh_mm_minutes(elapsed_minutes_simple)}{RESET}") 
+                else:
+                    print(f"{LIGHT_GRAY}No se añadió tiempo al trabajo.{RESET}")
+
                 input(f"\n{BOLD}{LIGHT_GRAY}Presiona Enter para volver al menú principal...{RESET}")
                 # ELIMINADO: No reiniciar last_activity_start_time aquí.
                 # last_activity_start_time = datetime.datetime.now()
@@ -1024,8 +1145,11 @@ def main():
                 print(f"{GREEN}Pomodoros completados: {total_pomodoros_session}{RESET}")
                 print(f"{ORANGE}Descansos cortos completados: {total_short_breaks_session}{RESET}")
                 print(f"{BLUE}Descansos largos completados: {total_long_breaks_session}{RESET}")
-                print(f"{BOLD}Tiempo total de trabajo: {GREEN}{format_time_hh_mm_minutes(total_work_minutes_session)}{RESET}")
-                print(f"{BOLD}Tiempo total de descanso: {ORANGE}{format_time_hh_mm_minutes(total_break_minutes_session)}{RESET}")
+                # Las variables total_work_minutes_session y total_break_minutes_session
+                # ya no se usan para mostrar aquí, ya que el tiempo productivo se asigna
+                # directamente a las categorías específicas o generales mediante daily_activity_log.
+                # Si se desea un total general de minutos de Pomodoro/Breaks, se necesitaría
+                # recalcularlo a partir de las categorías específicas o de los pomodoros/breaks completados.
                 
                 # Loguear el segmento final antes de salir.
                 change_current_daily_activity(None) # Esto loguea el último segmento y pone las variables globales a None
@@ -1062,3 +1186,4 @@ if __name__ == "__main__":
         show_daily_activity_summary(daily_activity_log, None, None, final_summary=True) # Mostrar resumen al salir abruptamente
     finally:
         print("Gracias por usar Pydoro.")
+
